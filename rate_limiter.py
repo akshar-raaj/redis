@@ -6,9 +6,17 @@ from connection import RedisConnection
 class RateLimiter(object):
     """
     """
-    THRESHOLD = 3
+    THRESHOLD = 5
     # Duration within which till THRESHOLD number of requests can be made.
-    TTL_DURATION = 60
+    TTL_DURATION = 30
+
+    @staticmethod
+    def _set_first_request(identifier):
+        redis_connection = RedisConnection()
+        connection = redis_connection.connection
+        reset_at = datetime.datetime.utcnow() + datetime.timedelta(seconds=RateLimiter.TTL_DURATION)
+        value = {'count': 1, 'reset_at': reset_at.isoformat()}
+        connection.hmset(identifier, value)
 
     @staticmethod
     def validate(identifier):
@@ -22,11 +30,15 @@ class RateLimiter(object):
         if entry == {}:
             # This doesn't exist in the cache yet.
             # This is the first request for this quota duration
-            reset_at = datetime.datetime.now() + datetime.timedelta(seconds=RateLimiter.TTL_DURATION)
-            value = {'count': 1, 'reset_at': reset_at.isoformat()}
-            connection.hmset(identifier, value)
+            RateLimiter._set_first_request(identifier)
             return True
         else:
+            # If the quota duration has already elapsed, a new quota window starts.
+            reset_time = datetime.datetime.fromisoformat(entry['reset_at'])
+            current_time = datetime.datetime.utcnow()
+            if current_time > reset_time:
+                RateLimiter._set_first_request(identifier)
+                return True
             # There has already been a request in this quota duration
             current_count = int(entry['count'])
             if current_count >= RateLimiter.THRESHOLD:
