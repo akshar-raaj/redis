@@ -25,6 +25,9 @@ class RateLimiter(object):
         reset_at = datetime.datetime.utcnow() + datetime.timedelta(seconds=RateLimiter.TTL_DURATION)
         value = {'count': 1, 'reset_at': reset_at.isoformat()}
         connection.hmset(identifier, value)
+        # Additional logic for being memory efficient with Redis.
+        # This will ensure the expired entries are evicted.
+        connection.expire(identifier, RateLimiter.TTL_DURATION)
 
     @staticmethod
     def validate(identifier):
@@ -44,6 +47,7 @@ class RateLimiter(object):
             # If the quota duration has already elapsed, a new quota window starts.
             reset_time = datetime.datetime.fromisoformat(entry['reset_at'])
             current_time = datetime.datetime.utcnow()
+            # This if condition would ideally never execute, as we have added TTL/expire logic now.
             if current_time > reset_time:
                 RateLimiter._set_first_request(identifier)
                 return True
