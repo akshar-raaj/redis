@@ -20,6 +20,8 @@ class RedisConnection(object):
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super().__new__(cls, *args, **kwargs)
+            # It's a lazy connection. Hence, there is no way to test if Redis is actually reachable.
+            # Unless we try to connect to it and execute a command, say ping.
             cls._instance.connection = redis.Redis()
         return cls._instance
 
